@@ -1,0 +1,61 @@
+diff --git a/bin/activate.sh b/bin/activate.sh
+@@ -227,8 +227,12 @@ fi
+ if [ "${DR_CLOUD,,}" == "local" ] && [ -z "${DR_MINIO_IMAGE}" ]; then
+   echo "WARNING: You have not configured DR_MINIO_IMAGE in system.env."
+-  echo "         System will default to tag RELEASE.2022-10-24T18-35-07Z"
+-  export DR_MINIO_IMAGE="RELEASE.2022-10-24T18-35-07Z"
++  echo "         System will default to rustfs/rustfs:1.0.4"
++  export DR_MINIO_IMAGE="rustfs/rustfs:1.0.4"
++fi
++
++if [[ "${DR_MINIO_IMAGE}" != */* ]]; then
++  export DR_MINIO_IMAGE="rustfs/rustfs:${DR_MINIO_IMAGE}"
+ fi
+ 
+ # Prepare the docker compose files depending on parameters
+diff --git a/bin/module/summary.sh b/bin/module/summary.sh
+@@ -222,11 +222,11 @@
+   local minio_img="" minio_disp="" minio_id=""
+   if [[ "${DR_CLOUD,,}" == "local" || "${DR_CLOUD,,}" == "azure" ]]; then
+-    minio_img="minio/minio:${DR_MINIO_IMAGE:-latest}"
++    minio_img="${DR_MINIO_IMAGE:-rustfs/rustfs:1.0.4}"
+     minio_disp="$minio_img"
+     minio_id=$(docker image inspect "$minio_img" --format '{{slice .Id 7 19}}' 2>/dev/null)
+     if [[ -z "$minio_id" ]]; then
+-      minio_id=$(docker images minio/minio --format '{{slice .ID 0 12}}' 2>/dev/null | head -1)
++      minio_id=$(docker images "$minio_img" --format '{{slice .ID 0 12}}' 2>/dev/null | head -1)
+     fi
+   fi
+ 
+diff --git a/defaults/template-system.env b/defaults/template-system.env
+@@ -12,7 +12,7 @@
+-DR_MINIO_IMAGE=latest
++DR_MINIO_IMAGE=rustfs/rustfs:1.0.4
+ 
+diff --git a/docker/docker-compose-local.yml b/docker/docker-compose-local.yml
+@@ -8,17 +8,16 @@
+ services:
+   minio:
+-    image: minio/minio:${DR_MINIO_IMAGE}
++    image: ${DR_MINIO_IMAGE}
+     ports:
+-      - "9000:9000"
+-      - "9001:9001"
+-    command: server /data --console-address ":9001"
++      - "127.0.0.1:9000:9000"
++      - "127.0.0.1:9001:9001"
++    command: /data
+     environment:
+-      - MINIO_ROOT_USER=${DR_LOCAL_ACCESS_KEY_ID}
+-      - MINIO_ROOT_PASSWORD=${DR_LOCAL_SECRET_ACCESS_KEY}
+-      - MINIO_UID
+-      - MINIO_GID
+-      - MINIO_USERNAME
+-      - MINIO_GROUPNAME
++      - RUSTFS_ACCESS_KEY=${DR_LOCAL_ACCESS_KEY_ID}
++      - RUSTFS_SECRET_KEY=${DR_LOCAL_SECRET_ACCESS_KEY}
++      - RUSTFS_ADDRESS=:9000
++      - RUSTFS_CONSOLE_ADDRESS=:9001
++      - RUSTFS_CONSOLE_ENABLE=true
+     volumes:
+       - ${DR_DIR}/data/minio:/data
